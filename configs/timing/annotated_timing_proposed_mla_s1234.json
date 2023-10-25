@@ -31,7 +31,8 @@
         "timing_encoding_dim": 128,
         "f0_encoding_dim": 128,
         "vad_hidden_dim": 512,
-        "vad_model_path": "/mnt/aoni04/yaguchi/code/ResponseTimingEstimator_DA/exp/annotated/data_-500_2000/vad/test/best_val_loss_model.pth",
+        "vad_model_path": "/mnt/aoni04/yaguchi/code/ResponseTimingEstimator_pitch/exp/annotated/data_-500_2000/vad/best_val_loss_model.pth",
+        "f0_model_path": "/mnt/aoni04/yaguchi/code/ResponseTimingEstimator_pitch/exp/annotated/data_-500_2000/f0/best_val_loss_model.pth",
         "lm_config_path": "/mnt/aoni04/yaguchi/code/ResponseTimingEstimator_DA/configs/lm/annotated_char_lstm_l1.json",
         "lm_model_path": "/mnt/aoni04/yaguchi/code/ResponseTimingEstimator_DA/exp/annotated/data_-500_2000/lm/test",
         "bidirectional": false

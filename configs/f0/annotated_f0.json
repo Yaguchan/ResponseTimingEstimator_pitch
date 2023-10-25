@@ -13,18 +13,7 @@
     },
     "model_params": {
         "input_dim": 320,
-        "output_dim": 10,
-        "hidden_dim": 512,
-        "vad_hidden_dim": 512,
-        "semantic_encoding_dim": 128,
-        "bidirectional": false
-    },
-    "loss_params": {
-        "asr_weight": 0.0,
-        "task_type_weight": 0.0,
-        "dialog_acts_weight": 0.5,
-        "system_acts_weight": 0.5,
-        "timing_weight": 0.0
+        "hidden_dim": 512
     },
     "optim_params": {
         "batch_size": 8,
