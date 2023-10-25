@@ -14,9 +14,6 @@ class VoiceActivityDetactor(nn.Module):
         super().__init__()
         self.config = config
         self.device = device
-        
-        self.R = 60
-        
         self.create_models()
 
     
@@ -24,7 +21,7 @@ class VoiceActivityDetactor(nn.Module):
         vad = VAD(
             self.device,
             self.config.model_params.input_dim,
-            self.config.model_params.vad_hidden_dim,
+            self.config.model_params.hidden_dim,
         )
         self.vad = vad
 

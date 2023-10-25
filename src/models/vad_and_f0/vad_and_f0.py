@@ -7,7 +7,7 @@ from itertools import chain
 torch.autograd.set_detect_anomaly(True)
 
 
-class VAD(nn.Module):
+class VAD_AND_F0(nn.Module):
 
     def __init__(self, device, input_dim, hidden_dim): #, silence_encoding_type="concat"):
         super().__init__()
@@ -62,9 +62,9 @@ class VAD(nn.Module):
         )
         
         logits_vad = self.fc2_vad(self.relu(self.fc1_vad(outputs)))
-        logits_vad = logits_vad.view(b, -1)
+        logits_vad = logits_vad.reshape(b, -1)
         logits_f0 = self.fc2_f0(self.relu(self.fc1_f0(outputs)))
-        logits_f0 = logits_f0.view(b, -1)
+        logits_f0 = logits_f0.reshape(b, -1)
         
         return logits_vad, logits_f0
     
@@ -99,12 +99,11 @@ class VAD(nn.Module):
             )
             
             feature_vad = self.fc1_vad(outputs)
-            feature_vad = feature_vad.view(b, t, -1)
+            feature_vad = feature_vad.reshape(b, t, -1)
             feature_f0 = self.fc1_f0(outputs)
-            feature_f0 = feature_f0.view(b, t, -1)
+            feature_f0 = feature_f0.reshape(b, t, -1)
         
         return feature_vad, feature_f0
-        # return outputs.view(b, t, -1)
     
     
     def reset_state(self):

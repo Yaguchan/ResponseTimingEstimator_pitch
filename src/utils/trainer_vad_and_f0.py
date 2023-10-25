@@ -57,7 +57,8 @@ def val(model, data_loader, deivce):
 
 def trainer(num_epochs, model, loader_dict, optimizer, device, outdir):
 
-    best_val_f0_loss = 1000000000
+    # best_val_f0_loss = 1000000000
+    best_val_vad_loss = 1000000000
     for epoch in range(num_epochs):
         print("Epoch:{}".format(epoch+1))
         train_vad_loss, train_f0_loss, train_vad_acc = train(model, optimizer, loader_dict['train'], device)
@@ -72,7 +73,7 @@ def trainer(num_epochs, model, loader_dict, optimizer, device, outdir):
         print("Val F0 loss  : {}".format(val_f0_loss))
         print("Val VAD      : {}".format(val_vad_acc))
         print('------------------------------------')
-        if best_val_f0_loss > val_f0_loss:
+        if best_val_vad_loss > val_vad_loss:
             best_val_vad_loss = val_vad_loss
             torch.save(model.state_dict(), os.path.join(outdir, "best_val_loss_model.pth"))
         

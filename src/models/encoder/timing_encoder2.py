@@ -11,13 +11,13 @@ from queue import PriorityQueue
 import operator
 
 from src.utils.utils import load_config
-from src.models.vad.vad import VAD
+from src.models.vad_and_f0.vad_and_f0 import VAD_AND_F0
 from src.models.lm.model import LSTMLM
 
 torch.autograd.set_detect_anomaly(True)
 
 
-class TimingEncoder(nn.Module):
+class TimingEncoder2(nn.Module):
 
     def __init__(self,
                  config,
@@ -40,13 +40,13 @@ class TimingEncoder(nn.Module):
         self.max_n_word = config.model_params.max_n_word
         
         if is_use_silence:
-            vad = VAD(
+            vad_and_f0 = VAD_AND_F0(
                 self.device,
                 self.config.model_params.input_dim,
                 self.config.model_params.vad_hidden_dim,
             )
-            self.vad = vad
-            self.load_state_dict(torch.load(config.model_params.vad_model_path))
+            self.vad_and_f0 = vad_and_f0
+            self.load_state_dict(torch.load(config.model_params.vad_and_f0_model_path))
         
         if is_use_n_word:
             lm_config_path = config.model_params.lm_config_path
@@ -75,7 +75,7 @@ class TimingEncoder(nn.Module):
     
         
     def reset_state(self):
-        self.vad.reset_state()
+        self.vad_and_f0.reset_state()
         self.cnt = 0        
         self.pre = 0
         self.et = 0
@@ -442,7 +442,8 @@ class TimingEncoder(nn.Module):
         max_len = max(input_lengths)  
         if self.is_use_silence:
             with torch.no_grad():
-                vad_preds = self.vad(feats, input_lengths)
+                vad_preds, f0_preds = self.vad_and_f0(feats, input_lengths)
+                r_vad, r_f0 = self.vad_and_f0.get_features(feats, input_lengths)
 
             silences = torch.zeros([b, max_len, 1]).to(self.device)
             utter_lengths = torch.zeros([b, max_len, 1]).to(self.device)
@@ -453,9 +454,10 @@ class TimingEncoder(nn.Module):
                 utter_lengths[i][:len(utter_length)] = utter_length
                 dialog_lengths[i][:len(dialog_length)] = dialog_length
                 
-            silences = torch.cat([silences, utter_lengths, dialog_lengths], dim=-1)                
+            silences = torch.cat([silences, utter_lengths, dialog_lengths], dim=-1)
+            # silences = torch.cat([silences, utter_lengths, dialog_lengths, f0_preds.reshape(b, max_len, 1)], dim=-1)               
                 
-            self.vad.reset_state()
+            self.vad_and_f0.reset_state()
         
         # Estimate Characters to the EoU        
         if self.is_use_n_word:
@@ -481,7 +483,7 @@ class TimingEncoder(nn.Module):
         if debug:
             return r_t, silences#torch.sigmoid(vad_preds)
         
-        return r_t
+        return r_t, r_f0
     
     
     def streaming_inference(self, feats, idxs, input_lengths, indices, split, debug=False):
@@ -502,7 +504,7 @@ class TimingEncoder(nn.Module):
         max_len = max(input_lengths)  
         if self.is_use_silence:
             with torch.no_grad():
-                vad_preds = self.vad(feats, input_lengths)
+                vad_preds, _ = self.vad_and_f0(feats, input_lengths)
 
             silences = torch.zeros([b, max_len, 1]).to(self.device)
             utter_lengths = torch.zeros([b, max_len, 1]).to(self.device)
@@ -519,7 +521,7 @@ class TimingEncoder(nn.Module):
                 
             silences = torch.cat([silences, utter_lengths, dialog_lengths], dim=-1)                
                 
-            self.vad.reset_state()
+            self.vad_and_f0.reset_state()
         
         # Estimate Characters to the EoU        
         if self.is_use_n_word:
@@ -606,7 +608,7 @@ class TimingEncoder(nn.Module):
         max_len = max(input_lengths)  
         if self.is_use_silence:
             with torch.no_grad():
-                vad_preds = self.vad(feats, input_lengths)
+                vad_preds, _ = self.vad_and_f0(feats, input_lengths)
 
             silences = torch.zeros([b, max_len, 1]).to(self.device)
             for i in range(b):                

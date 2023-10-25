@@ -18,17 +18,15 @@ class BaselineSystem(nn.Module):
         super().__init__()
         self.config = config
         self.device = device
-        
-        self.R = 60
-        
         self.create_models()
 
+    
     def create_models(self):
         
         encoding_dim = self.config.model_params.acoustic_encoding_dim \
                         + self.config.model_params.semantic_encoding_dim \
                         + self.config.model_params.timing_encoding_dim \
-                        + self.config.model_params.f0_encoding_dim
+                        # + self.config.model_params.f0_encoding_dim
         
         timing_estimator = TimingEstimator(self.device, encoding_dim, self.config.model_params.hidden_dim)
         self.timing_model = timing_estimator

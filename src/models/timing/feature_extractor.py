@@ -8,8 +8,10 @@ from itertools import chain
 from src.models.encoder.transformer_encoder_mytokenizer import TransformerEncoder
 from src.models.encoder.acoustic_encoder import AcousticEncoder
 from src.models.encoder.timing_encoder import TimingEncoder
+from src.models.encoder.timing_encoder2 import TimingEncoder2
 from src.models.vad.vad import VAD
 from src.models.f0.f0 import F0
+from src.models.vad_and_f0.vad_and_f0 import VAD_AND_F0
 
 torch.autograd.set_detect_anomaly(True)
 
@@ -45,6 +47,17 @@ class FeatureExtractor(nn.Module):
             is_use_n_word=self.is_use_n_word,
         )
         self.timing_encoder = te
+        """
+        te2 = TimingEncoder2(
+            self.config,
+            self.device,
+            self.config.model_params.timing_input_dim,
+            self.config.model_params.timing_encoding_dim,
+            is_use_silence=self.is_use_silence,
+            is_use_n_word=self.is_use_n_word,
+        )
+        self.timing_encoder2 = te2
+        """
         
         # VAD
         """
@@ -53,9 +66,17 @@ class FeatureExtractor(nn.Module):
         self.vad.load_state_dict(torch.load(config.model_params.vad_model_path), strict=False)
         """
         # F0
+        """
         f0 = F0(self.device, self.config.model_params.input_dim, self.config.model_params.vad_hidden_dim)
         self.f0 = f0
         self.f0.load_state_dict(torch.load(config.model_params.f0_model_path), strict=False)
+        """
+        # VAD_AND_F0
+        """
+        vad_and_f0 = VAD_AND_F0(self.device, self.config.model_params.input_dim, self.config.model_params.vad_hidden_dim)
+        self.vad_and_f0 = vad_and_f0
+        self.vad_and_f0.load_state_dict(torch.load(config.model_params.vad_and_f0_model_path), strict=False)
+        """
         
         se = TransformerEncoder(
             self.config,
@@ -69,6 +90,7 @@ class FeatureExtractor(nn.Module):
         parameters = chain(
             self.acoustic_encoder.parameters(),
             self.timing_encoder.linear.parameters(),
+            # self.timing_encoder2.linear.parameters(),
             self.semantic_encoder.parameters(),
         )
         return parameters
@@ -78,14 +100,16 @@ class FeatureExtractor(nn.Module):
         
         r_a = self.acoustic_encoder(specs, input_lengths)
         r_t = self.timing_encoder(specs, idxs, input_lengths, indices, split)
+        # r_t, _ = self.timing_encoder2(specs, idxs, input_lengths, indices, split)
+        # r_t, r_f0 = self.timing_encoder2(specs, idxs, input_lengths, indices, split)
         r_s = self.semantic_encoder(idxs, input_lengths)
         # r_vad = self.vad.get_features(specs, input_lengths)
-        r_f0 = self.f0.get_features(specs, input_lengths)
+        # r_f0 = self.f0.get_features(specs, input_lengths)
+        # r_vad_and_f0 = self.vad_and_f0.get_features(specs, input_lengths)
         
-        # embs = torch.cat([r_s, r_a, r_t], dim=-1)
-        embs = torch.cat([r_s, r_a, r_t, r_f0], dim=-1)
-        # embs = torch.cat([r_s, r_vad, r_f0], dim=-1)
-        # embs = torch.cat([r_s, r_t, r_f0], dim=-1)
+        embs = torch.cat([r_s, r_a, r_t], dim=-1)
+        # embs = torch.cat([r_s, r_a, r_t, r_f0], dim=-1)
+        # embs = torch.cat([r_s, r_a, r_t, r_vad_and_f0], dim=-1)
      
         return embs
     
@@ -110,3 +134,4 @@ class FeatureExtractor(nn.Module):
     def reset_state(self):
         self.acoustic_encoder.reset_state()
         self.timing_encoder.reset_state()
+        # self.timing_encoder2.reset_state()

@@ -93,7 +93,7 @@ class F0(nn.Module):
             )
             
             feature_f0 = self.fc1(outputs)
-            feature_f0 = feature_f0.view(b, t, -1)
+            feature_f0 = feature_f0.reshape(b, t, -1)
         
         return feature_f0
     
