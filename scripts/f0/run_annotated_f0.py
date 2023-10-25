@@ -60,6 +60,7 @@ def run(args):
         loader_dict=loader_dict,
         device=device,
     )
+
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

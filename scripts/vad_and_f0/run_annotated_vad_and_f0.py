@@ -6,11 +6,11 @@ import numpy as np
 from dotmap import DotMap
 from src.datasets.dataset_annotated_vad import get_dataloader, get_dataset
 from src.utils.utils import load_config
-from src.utils.trainer_vad import trainer, tester
-from src.models.vad.model_vad import VoiceActivityDetactor
+from src.utils.trainer_vad_and_f0 import trainer, tester
+from src.models.vad_and_f0.model_vad_and_f0 import VAD_AND_F0_Predictor
 
 
-# python scripts/vad/run_annotated_vad.py configs/vad/annotated_vad.json --gpuid 0
+# python scripts/vad_and_f0/run_annotated_vad_and_f0.py configs/vad_and_f0/annotated_vad_and_f0.json --gpuid 0
 
 
 def run(args):
@@ -35,7 +35,7 @@ def run(args):
     del val_dataset
     del test_dataset
     
-    model = VoiceActivityDetactor(config, device)
+    model = VAD_AND_F0_Predictor(config, device)
     model.to(device)
     
     parameters = model.configure_optimizer_parameters()
@@ -61,11 +61,10 @@ def run(args):
         device=device,
     )
 
-    
+   
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('config', type=str, default='configs/config.path', help='path to config file')
     parser.add_argument('--gpuid', type=int, default=-1, help='gpu device id')
     args = parser.parse_args()
     run(args)
-    
