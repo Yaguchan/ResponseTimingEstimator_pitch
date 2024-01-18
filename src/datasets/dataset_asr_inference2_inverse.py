@@ -8,15 +8,7 @@ from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
 import numpy as np
 import pandas as pd
-
 from tqdm import tqdm
-
-
-# 変更
-DATAROOT="/mnt/aoni04/yaguchi/code/ResponseTimingEstimator_DA/data/ATR_Annotated"
-# EXPROOT=os.path.join(DATAROOT, "data_-500_2000")
-EXPROOT=os.path.join(DATAROOT, "data_-500_1000")
-CSVDIR  = os.path.join(EXPROOT, "csv")
 
 
 # 直前の発話のみ
@@ -24,13 +16,14 @@ CSVDIR  = os.path.join(EXPROOT, "csv")
 class ATRDataset(Dataset):
     def __init__(self, config, speaker_list=None):
         self.config = config
+        self.data_dir = self.config.data_dir
         
 #         name_path = "/mnt/aoni04/jsakuma/data/ATR2022/asr/names/{}.txt".format(split)
 #         with open(name_path) as f:
 #             lines = f.readlines()
     
 #         self.file_names = [line.replace('\n', '') for line in lines]
-        self.file_names = [file_path.split('/')[-1].replace('.csv', '') for file_path in sorted(glob.glob(os.path.join(CSVDIR, '*.csv')))]
+        self.file_names = [file_path.split('/')[-1].replace('.csv', '') for file_path in sorted(glob.glob(os.path.join(self.data_dir, 'csv', '*.csv')))]
 #         if speaker_list is not None:
 #             self.file_names = [name for name in self.file_names if spk_dict[name+'.wav'] in speaker_list]
         
@@ -58,10 +51,10 @@ class ATRDataset(Dataset):
     
     def get_turn_info(self, file_name):
         # 各種ファイルの読み込み
-        df_turns_path = os.path.join(EXPROOT, 'csv/{}.csv'.format(file_name))
-        df_vad_path = os.path.join(EXPROOT,'vad/{}.csv'.format(file_name))       
-        #feat_list = os.path.join(EXPROOT, 'cnn_ae/{}/*_spec.npy'.format(file_name))
-        wav_list = os.path.join(EXPROOT, 'wav/{}/*.wav'.format(file_name))
+        df_turns_path = os.path.join(self.data_dir, 'csv/{}.csv'.format(file_name))
+        df_vad_path = os.path.join(self.data_dir,'vad/{}.csv'.format(file_name))       
+        #feat_list = os.path.join(self.data_dir, 'cnn_ae/{}/*_spec.npy'.format(file_name))
+        wav_list = os.path.join(self.data_dir, 'wav/{}/*.wav'.format(file_name))
         #feat_list = sorted(glob.glob(feat_list))
         wav_list = sorted(glob.glob(wav_list))
         

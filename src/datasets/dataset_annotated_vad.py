@@ -1,261 +1,191 @@
 import os
 import glob
-import json
-import wave
-import struct
 import torch
-from torch.utils.data import DataLoader
-from torch.utils.data import Dataset
+import random
 import numpy as np
 import pandas as pd
-
 from tqdm import tqdm
+from torchvision import transforms
+from torch.utils.data import Dataset
+from torch.nn.utils.rnn import pad_sequence
 
-import sys
 
-name_mapping = {'F1(伊藤)': 'F1',
-                'F2(不明)': 'F2',
-                'F3(中川)': 'F3',
-                'F4(川村)': 'F4',
-                'M1(黒河内)': 'M1',
-                'M2(平林)': 'M2',
-                'M3(浜田)': 'M3',
-                'M4(不明)': 'M4'
-               }
 
 MAX_LEN = 20000000
 
-# 直前の発話のみ
-# 出力: spectrogram, VAD出力ラベル, 最後のIPU=1ラベル
+
+# 正規化
+transform = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Normalize((0.5,), (0.5,))
+])
+
+
+def collate_func(batch):
+    specs, feats, vads =  zip(*batch)
+    batch_size = len(specs)
+    max_len = max([len(spec) for spec in specs])
+    _, h, w = specs[0].shape
+    _, cnnae_dim = feats[0].shape
+    specs_ = torch.zeros(batch_size, max_len, h, w)
+    feats_ = torch.zeros(batch_size, max_len, cnnae_dim)
+    vads_ = torch.zeros(batch_size, max_len)*(-100)
+    lengths_ = []
+    for i in range(batch_size):
+        l = len(specs[i])
+        specs_[i, :l] = torch.tensor(specs[i])
+        feats_[i, :l] = torch.tensor(feats[i])
+        vads_[i, :l] = torch.tensor(vads[i])
+        lengths_.append(l)
+    return specs_, feats_, vads_, lengths_
+
+
+def SpecAugment(spec):
+    t, h, w = spec.shape
+    dh = int(h * 0.1)
+    mask_h = random.randint(0, int(h * 0.9))
+    mask_w = random.randint(0, int(w * 0.9))
+    spec[:, mask_h:mask_h+dh] = 0
+    spec[:, :, mask_w] = 0
+    return spec
+
+
+def min_max_scaling(spec):
+    return (spec - np.min(spec)) / (np.max(spec) - np.min(spec))    
+
+
+
 class ATRDataset(Dataset):
     
-    def __init__(self, config, split='train', speaker_list=None):
+    def __init__(self, config):
         self.config = config
         self.data_dir = self.config.data_params.data_dir
-        
-        name_path = os.path.join(self.data_dir, 'names/M1_{}.txt'.format(split))
-        
+        self.frame_length = config.data_params.frame_size
+        self.sample_rate = config.data_params.sampling_rate
+        name_path = os.path.join(self.data_dir, 'names/M1_all.txt')
         with open(name_path) as f:
             lines = f.readlines()
-    
         self.file_names = [line.replace('\n', '') for line in lines]
-        
-        spk_file_path = os.path.join(self.data_dir, 'speaker_ids.csv')
-        df_spk=pd.read_csv(spk_file_path, encoding='shift-jis')
-        df_spk['operator'] =  df_spk['オペレータ'].map(lambda x: name_mapping[x])
-        filenames = df_spk['ファイル名'].to_list()
-        spk_ids = df_spk['operator'].to_list()
-        spk_dict  = dict(zip(filenames, spk_ids))
-        if speaker_list is not None:
-            self.file_names = [name for name in self.file_names if spk_dict[name+'.wav'] in speaker_list]
-        
-        self.frame_length = config.data_params.frame_size  # 1frame=50ms
-        self.sample_rate = config.data_params.sampling_rate
-        self.max_positive_length = config.data_params.max_positive_length # システム発話のターゲットの最大長(0/1の1の最大長) [frame]
-        self.text_dir = config.data_params.text_dir
-        
-        self.data = self.get_data()
+        self.data = self.get_item()
     
        
-    def read_wav(self, wavpath):
-        wf = wave.open(wavpath, 'r')
-
-        # waveファイルが持つ性質を取得
-        ch = wf.getnchannels()
-        width = wf.getsampwidth()
-        fr = wf.getframerate()
-        fn = wf.getnframes()
-
-        x = wf.readframes(wf.getnframes()) #frameの読み込み
-        x = np.frombuffer(x, dtype= 'int16') #numpy.arrayに変換
-
-        return x
-
-    
-    def get_last_ipu(self, turn):
-        ipu_label = np.zeros(len(turn))
-        sub = turn[1:]-turn[:-1]    
-        if 1 in sub:
-            idx = np.where(sub==1)[0][-1]
-            ipu_label[idx+1:] = 1
-
-        return ipu_label
-    
-    
-    def get_turn_info(self, file_name):
-        # 各種ファイルの読み込み
-        df_turns_path = os.path.join(self.data_dir, 'csv/{}.csv'.format(file_name))
-        df_vad_path = os.path.join(self.data_dir,'vad/{}.csv'.format(file_name))
-        spec_list = os.path.join(self.data_dir, 'spectrogram/{}/*_spectrogram.npy'.format(file_name))
-        f0_list = os.path.join(self.data_dir, 'f0/{}/*_f0.npy'.format(file_name))
-        wav_list = os.path.join(self.data_dir, 'wav/{}/*.wav'.format(file_name))
-        wav_start_end_list = os.path.join(self.data_dir, 'wav_start_end/{}.csv'.format(file_name))
-        spec_list = sorted(glob.glob(spec_list))
-        f0_list = sorted(glob.glob(f0_list))
-        wav_list = sorted(glob.glob(wav_list))
+    def get_item(self):
         
-        df = pd.read_csv(df_turns_path)
-        df_vad = pd.read_csv(df_vad_path)
-        df_wav = pd.read_csv(wav_start_end_list)
-
-        N = MAX_LEN//self.sample_rate*1000
-
-        # vadの結果
-        uttr_user = np.zeros(N//self.frame_length)
-        uttr_agent = np.zeros(N//self.frame_length)      
-        for i in range(len(df_vad)):
-            spk = df_vad['spk'].iloc[i]
-            start = (df_vad['start'].iloc[i]) // self.frame_length
-            end = (df_vad['end'].iloc[i]) // self.frame_length
-            if spk==1:
-                uttr_user[start:end]=1
-            else:
-                uttr_agent[start:end]=1
-
         batch_list = []
-        num_turn = len(df['spk'])
         
-        for t in range(num_turn):
-            spec_path = spec_list[t]
-            f0_path = f0_list[t]
-            wav_path = wav_list[t]
-            spec_file_name = spec_path.split('/')[-1].replace('.npy', '').replace('_spectrogram', '')
-            f0_file_name = f0_path.split('/')[-1].replace('.npy', '').replace('_f0', '')
-            wav_file_name = wav_path.split('/')[-1].replace('.wav', '')     
-            
-            assert spec_file_name == wav_file_name, 'file name mismatch! check the spec-file and wav-file!'
-            
-            ch = df['spk'].iloc[t]
-            offset = df['offset'].iloc[t]
-            next_ch = df['nxt_spk'].iloc[t]
-            wav_start = df_wav['wav_start'][t]//self.frame_length
-            wav_end = df_wav['wav_end'][t]//self.frame_length
-            cur_usr_uttr_end = df['end'][t]//self.frame_length
-            timing = df['nxt_start'][t]//self.frame_length
+        for file_name in tqdm(self.file_names):
 
-            if wav_end - timing > self.max_positive_length:  # システム発話をどれくらいとるか
-                wav_end = timing + self.max_positive_length
-
-            vad_user = uttr_user[wav_start:wav_end]
+            # vad
+            df_vad_path = os.path.join(self.data_dir,'vad/{}.csv'.format(file_name))
+            df_vad = pd.read_csv(df_vad_path)
+            # spec
+            spec_list = os.path.join(self.data_dir, 'spectrogram/{}/*_spectrogram.npy'.format(file_name))
+            # spec_list = os.path.join(self.data_dir, 'spectrogram_yaguchinoise/{}/*_spectrogram.npy'.format(file_name))
+            spec_list = sorted(glob.glob(spec_list))
+            # feat
+            feat_list = os.path.join(self.data_dir, 'cnn_ae/{}/*_spec.npy'.format(file_name))
+            feat_list = sorted(glob.glob(feat_list))
+            # wav start end
+            wav_start_end_list = os.path.join(self.data_dir, 'wav_start_end/{}.csv'.format(file_name))
+            df_wav = pd.read_csv(wav_start_end_list)
+            # f0
+            f0_list = os.path.join(self.data_dir, 'f0/{}/*_f0.npy'.format(file_name))
+            f0_list = sorted(glob.glob(f0_list))
             
-            turn_label = np.zeros(N//self.frame_length)
-            turn_label[wav_start:cur_usr_uttr_end] = 1
-            turn_label = turn_label[wav_start:wav_end]
+            # vad
+            N = MAX_LEN//self.sample_rate*1000
+            uttr_user = np.zeros(N//self.frame_length)
+            uttr_agent = np.zeros(N//self.frame_length)      
+            for i in range(len(df_vad)):
+                spk = df_vad['spk'].iloc[i]
+                start = (df_vad['start'].iloc[i]) // self.frame_length
+                end = (df_vad['end'].iloc[i]) // self.frame_length
+                if spk==1:
+                    uttr_user[start:end]=1
+                else:
+                    uttr_agent[start:end]=1
 
-            last_ipu_user = self.get_last_ipu(vad_user)
-
-            vad_label = vad_user
-            last_ipu = last_ipu_user
-            
-            if len(vad_label) == 0: 
-                continue      
-
-            batch = {"ch": ch,
-                     "offset": offset,
-                     "spec_path": spec_path,
-                     "f0_path": f0_path,
-                     "wav_path": wav_path,
-                     "vad": vad_label,
-                     "turn": turn_label,
-                     "last_ipu": last_ipu,
-                     "target": vad_label,
-                    }
-            
-            batch_list.append(batch)
-            
+            num_turn = len(df_wav)
+            for turn in range(num_turn):
+                spec = np.load(spec_list[turn])
+                feat = np.load(feat_list[turn])
+                f0 = torch.tensor(np.load(f0_list[turn]))
+                f0 = (f0 > 0).int()
+                wav_start = df_wav['wav_start'][turn]//self.frame_length
+                wav_end = df_wav['wav_end'][turn]//self.frame_length
+                vad_user = uttr_user[wav_start:wav_end]
+                t = min(len(spec), len(feat), len(vad_user))
+                
+                # normalization
+                # spec = transform(spec.transpose((1, 2, 0)))
+                
+                batch = {
+                    "spec": spec[:t],
+                    "feat": feat[:t],
+                    "vad": vad_user[:t]
+                    # "vad": f0[:t]
+                }
+                batch_list.append(batch)
+                
+                # SpecAugment
+                """
+                batch2 = {
+                    "spec":SpecAugment(spec),
+                    "vad": vad_user[:t]
+                    # "vad": f0[:t]
+                }
+                batch_list.append(batch2)
+                """
+                    
         return batch_list
     
     
-    def get_data(self):
-        data = []
-        for file_name in tqdm(self.file_names):  
-            data += self.get_turn_info(file_name)
-            
-        return data            
-    
-        
     def __getitem__(self, index):
-        batch = self.data[index]
-        spec = np.load(batch['spec_path'])
-        f0 = np.load(batch['f0_path'])
-        #wav = self.read_wav(batch['wav_path'])
-        vad = batch['vad']
-        turn = batch['turn']
-        last_ipu = batch['last_ipu']
-        target = batch['target']
-        
-        length = min(len(spec), len(vad), len(turn), len(target))
-        batch['vad'] = vad[:length]
-        batch['turn'] = turn[:length]
-        batch['last_ipu'] = last_ipu[:length]
-        batch['target'] = target[:length]
-        batch['spec'] = spec[:length]
-        batch['f0'] = f0[:length]
-        batch['indices'] = index
-        
-        wav_len = int(length * self.sample_rate * self.frame_length / 1000)
-        
-        assert len(batch['spec'])==len(batch['vad']), "error"
-        
+        batch = self.data[index]        
         return list(batch.values())
-
+    
     
     def __len__(self):
         return len(self.data)
-    
-
-def collate_fn(batch):
-    chs, offsets, spec_paths, f0_paths, wav_paths, vad, turn, last_ipu, targets, specs, f0s, indices = zip(*batch)
-    
-    batch_size = len(chs)
-    
-    max_len = max([len(f) for f in specs])
-    _, h, w = specs[0].shape
-    
-    vad_ = torch.zeros(batch_size, max_len).long()
-    turn_ = torch.zeros(batch_size, max_len).float()
-    last_ipu_ = torch.zeros(batch_size, max_len).long()
-    target_ = torch.ones(batch_size, max_len).long()*(-100)
-    spec_ = torch.zeros(batch_size, max_len, h, w)
-    f0_ = torch.zeros(batch_size, max_len)
-    
-    input_lengths = []
-    for i in range(batch_size):
-        l1 = len(specs[i])
-        input_lengths.append(l1)
-            
-        vad_[i, :l1] = torch.tensor(vad[i]).long()               
-        turn_[i, :l1] = torch.tensor(turn[i]).float()       
-        last_ipu_[i, :l1] = torch.tensor(last_ipu[i]).long()
-        target_[i, :l1] = torch.tensor(targets[i]).long()       
-        spec_[i, :l1] = torch.tensor(specs[i])
-        f0_[i, :l1] = torch.tensor(f0s[i])
-        
-    input_lengths = torch.tensor(input_lengths).long()
-        
-    return chs, vad_, turn_, last_ipu_, target_, spec_, input_lengths, offsets, indices, f0_
-    
-    
-def create_dataloader(dataset, batch_size, shuffle=True, pin_memory=True, num_workers=2):
-    loader = DataLoader(
-        dataset, 
-        batch_size=batch_size,
-        shuffle=shuffle, 
-        pin_memory=pin_memory,
-        num_workers=num_workers,
-        collate_fn= lambda x: collate_fn(x),
-    )
-    return loader
-
-def get_dataset(config, split="train", speaker_list=None):
-    dataset = ATRDataset(config, split, speaker_list)
-    return dataset
 
 
-def get_dataloader(dataset, config, split="train"):
-    if split=="train":
-        shuffle = True
-    else:
-        shuffle = False
-    dataloader = create_dataloader(dataset, config.optim_params.batch_size, shuffle=shuffle)
-    return dataloader
+
+class OtherDataset(Dataset):
+    
+    def __init__(self, config):
+        self.config = config
+        self.data_path = self.config.data_params.data_dir
+        names = os.listdir(os.path.join(self.data_path, 'f0'))
+        file_names = [name.replace('_f0.npy', '') for name in names]
+        self.file_names = file_names
+        self.data = self.get_item()
+    
+       
+    def get_item(self):
+        data = []
+        for i, file_name in enumerate(tqdm(self.file_names)):
+            # if i >= 10: break
+            spec = np.load(os.path.join(self.data_path, 'spec', f'{file_name}_spec.npy'))
+            spec = torch.tensor(spec, dtype=torch.float32)
+            pitch = np.load(os.path.join(self.data_path, 'f0', f'{file_name}_f0.npy'))
+            vad = (torch.tensor(pitch, dtype=torch.float32) > 0).int()
+            t = len(pitch)
+            N = 2000
+            for i in range(t//N):
+                start = N * i
+                end = N * (i + 1)
+                batch = {'spec':spec[start:end], 'pitch':vad[start:end]}
+                data.append(batch)
+            # batch = {'spec':spec, 'pitch':pitch, 'file_name': file_name}
+            # data.append(batch)
+
+        return data
+    
+    
+    def __getitem__(self, index):
+        batch = self.data[index]        
+        return list(batch.values())
+    
+    
+    def __len__(self):
+        return len(self.data)

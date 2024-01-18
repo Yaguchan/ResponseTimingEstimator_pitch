@@ -169,7 +169,7 @@ def tester(config, device, test_loader, model, model_dir, out_dir, resume_name, 
     y_label_list_test = []
     uttr_label_list_test = [] 
     barge_in_list_test = [] 
-    list_wav_path = []
+    wavpath_list_test = []
     
     timing_loss = 0
     split='test'
@@ -185,7 +185,7 @@ def tester(config, device, test_loader, model, model_dir, out_dir, resume_name, 
             #turn = batch[5].to(self.device)
             #last_ipu = batch[6].to(self.device)
             targets = batch[7].to(model.device)
-            feats = batch[8].to(model.device)
+            specs = batch[8].to(model.device)
             input_lengths = batch[9] #.to(self.device)
             offsets = batch[10] #.to(self.device)
             indices = batch[11] #.to(self.device)
@@ -193,10 +193,11 @@ def tester(config, device, test_loader, model, model_dir, out_dir, resume_name, 
             names = batch[13]
             wav_path = batch[14]
             targets2 = batch[15].to(model.device)
+            feats = batch[16].to(model.device)
             batch_size = int(len(chs))
             # print(targets2)
 
-            embs = model.feature_extractor(feats, idxs, input_lengths, texts, indices, split)
+            embs = model.feature_extractor(specs, feats, idxs, input_lengths, texts, indices, split)
             # embs = torch.cat([embs, model.fc(nxt_das)], dim=-1)
             # embs = torch.cat([embs, nxt_da], dim=-1)
             outputs = model.timing_model(embs, input_lengths)
@@ -216,7 +217,6 @@ def tester(config, device, test_loader, model, model_dir, out_dir, resume_name, 
                 #silence_list.append(outputs[i][:input_lengths[i]])
                 label_list.append(targets[i][:input_lengths[i]])
                 uttr_list.append(vad[i][:input_lengths[i]])
-                list_wav_path.append(wav_path[i]) 
                 
                 paths_list.append(names[i]) # Add
                 if texts[i][-1] == '[PAD]':
@@ -227,7 +227,7 @@ def tester(config, device, test_loader, model, model_dir, out_dir, resume_name, 
                         pre_text = text
                 else:
                     texts_list.append(texts[i][-1])
-
+                    
             for idx in range(len(out_list)):
                 y_pred = torch.sigmoid(out_list[idx]).detach().cpu().numpy()
                 system = label_list[idx].detach().cpu().numpy()
@@ -246,6 +246,7 @@ def tester(config, device, test_loader, model, model_dir, out_dir, resume_name, 
                 offset_list_test.append(offsets[idx])
                 barge_in_list_test.append(is_barge_in[idx])
                 #silence_list_test.append(silence_list[idx].detach().cpu().numpy())
+                wavpath_list_test.append(wav_path[idx])
                 
     triggers = []
     ipu_labels = []
@@ -287,6 +288,7 @@ def tester(config, device, test_loader, model, model_dir, out_dir, resume_name, 
         pred = (pred - eou_list[i])*frame_length
         target = (target - eou_list[i])*frame_length
         barge_in = barge_in_list_test[i]
+        
 
         if TP>0:
             dic_test["TP"]+=1
@@ -308,6 +310,7 @@ def tester(config, device, test_loader, model, model_dir, out_dir, resume_name, 
             dic_test["TN"]+=TN
 
     df_test = pd.DataFrame({
+        'wavpath': wavpath_list_test,
         'type': dic_info['type'], 
         'target': dic_info["target"],
         'pred': dic_info["pred"],

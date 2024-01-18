@@ -4,6 +4,7 @@ import json
 import wave
 import struct
 import torch
+import itertools
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
 import numpy as np
@@ -139,46 +140,77 @@ class ATRDataset(Dataset):
         self.mim_timing = config.data_params.min_timing        
         self.text_dir = config.data_params.text_dir
         
-        data = self.get_data()
+        name, data = self.get_data()
 
         # alldata or cross validation
         if cv_id == -1:
             self.data = data
         else:
-            random.seed(0)
-            random.shuffle(data)
+            list_data = list(zip(name, data))
+            random.shuffle(list_data)
+            name, data = zip(*list_data)
             
-            NUM = len(data)//5
-            sub1 = data[NUM*0:NUM*1]
-            sub2 = data[NUM*1:NUM*2]
-            sub3 = data[NUM*2:NUM*3]
-            sub4 = data[NUM*3:NUM*4]
-            sub5 = data[NUM*4:]
+            NUM = len(data)//6
+            sub1 = [item for lists in data[:NUM*1] for item in lists]
+            sub2 = [item for lists in data[NUM*1:NUM*2] for item in lists]
+            sub3 = [item for lists in data[NUM*2:NUM*3] for item in lists]
+            sub4 = [item for lists in data[NUM*3:NUM*4] for item in lists]
+            sub5 = [item for lists in data[NUM*4:NUM*5] for item in lists]
+            sub6 = [item for lists in data[NUM*5:] for item in lists]
+            sub1name = name[:NUM*1]
+            sub2name = name[NUM*1:NUM*2]
+            sub3name = name[NUM*2:NUM*3]
+            sub4name = name[NUM*3:NUM*4]
+            sub5name = name[NUM*4:NUM*5]
+            sub6name = name[NUM*5:]
             
             if cv_id == 1:
+                valset = sub1
+                valname = sub1name
                 trainset = sub2+sub3+sub4+sub5
-                testset = sub1
+                trainname = sub2name+sub3name+sub4name+sub5name
             elif cv_id == 2:
-                trainset = sub3+sub4+sub5+sub1
-                testset = sub2
+                valset = sub2
+                valname = sub2name
+                trainset = sub1+sub3+sub4+sub5
+                trainname = sub1name+sub3name+sub4name+sub5name
             elif cv_id == 3:
-                trainset = sub4+sub5+sub1+sub2
-                testset = sub3
+                valset = sub3
+                valname = sub3name
+                trainset = sub1+sub2+sub4+sub5
+                trainname = sub1name+sub2name+sub4name+sub5name
             elif cv_id == 4:
-                trainset = sub5+sub1+sub2+sub3
-                testset = sub4
+                valset = sub4
+                valname = sub4name
+                trainset = sub1+sub2+sub3+sub5
+                trainname = sub1name+sub2name+sub3name+sub5name
             elif cv_id == 5:
+                valset = sub5
+                valname = sub5name
                 trainset = sub1+sub2+sub3+sub4
-                testset = sub5
+                trainname = sub1name+sub2name+sub3name+sub4name
             else:
                 NotImplemented
+            
+            testset = sub6
+            testname = sub6name
                 
             if split == 'train':
                 self.data = trainset
+            elif split == 'val':
+                self.data = valset
             else:
                 self.data = testset
+                with open(os.path.join(config.exp_dir, f'cv{cv_id}', 'name.txt'), 'w') as f:
+                    f.write('------------------------------------\n')
+                    for category, category_names in zip(['train', 'val', 'test'], [trainname, valname, testname]):
+                        f.write(f'{category}\n')
+                        category_names = sorted(list(category_names))
+                        for category_name in category_names:
+                            f.write(f'{category_name}\n')
+                        f.write('------------------------------------\n')
+                
     
-       
     def read_wav(self, wavpath):
         wf = wave.open(wavpath, 'r')
 
@@ -240,9 +272,12 @@ class ATRDataset(Dataset):
         # 各種ファイルの読み込み
         df_turns_path = os.path.join(self.data_dir, 'csv/{}.csv'.format(file_name))
         df_vad_path = os.path.join(self.data_dir,'vad/{}.csv'.format(file_name))
+        feat_list = os.path.join(self.data_dir, 'cnn_ae/{}/*_spec.npy'.format(file_name))
         spec_list = os.path.join(self.data_dir, 'spectrogram/{}/*_spectrogram.npy'.format(file_name))
+        # spec_list = os.path.join(self.data_dir, 'spectrogram_yaguchinoise/{}/*_spectrogram.npy'.format(file_name))
         wav_list = os.path.join(self.data_dir, 'wav/{}/*.wav'.format(file_name))
         wav_start_end_list = os.path.join(self.data_dir, 'wav_start_end/{}.csv'.format(file_name))
+        feat_list = sorted(glob.glob(feat_list))
         spec_list = sorted(glob.glob(spec_list))
         wav_list = sorted(glob.glob(wav_list))
         
@@ -269,8 +304,10 @@ class ATRDataset(Dataset):
         num_turn = len(df['spk'])
         
         for t in range(num_turn): 
+            feat_path = feat_list[t]
             spec_path = spec_list[t]
             wav_path = wav_list[t]
+            feat_file_name = feat_path.split('/')[-1].replace('.npy', '').replace('_spec', '')
             spec_file_name = spec_path.split('/')[-1].replace('.npy', '').replace('_spectrogram', '')
             wav_file_name = wav_path.split('/')[-1].replace('.wav', '')
             
@@ -343,7 +380,7 @@ class ATRDataset(Dataset):
             
             # 心理尺度に基づいたtarget
             turn_timing_target2 = make_loss_target(turn_timing_target, offset) 
-            # print(turn_timing_target2)           
+            # print(turn_timing_target2)     
 
             batch = {"ch": ch,
                      "offset": offset,
@@ -352,6 +389,7 @@ class ATRDataset(Dataset):
                      "kana": kana,
                      "idx": idx,
                      "spec_path": spec_path,
+                     "feat_path": feat_path,
                      "wav_path": wav_path,
                      "vad": vad_label,
                      "turn": turn_label,
@@ -367,14 +405,16 @@ class ATRDataset(Dataset):
     
     def get_data(self):
         data = []
+        name = []
         for file_name in tqdm(self.file_names):
-            data += self.get_turn_info(file_name)
-            
-        return data            
+            name.append(file_name)
+            data.append(self.get_turn_info(file_name))
+        return name, data            
     
     
     def __getitem__(self, index):
         batch = self.data[index]
+        feat = np.load(batch['feat_path'])
         spec = np.load(batch['spec_path'])
         text = batch['text']
         idx = batch['idx']
@@ -384,7 +424,7 @@ class ATRDataset(Dataset):
         target = batch['target']
         target2 = batch['target2']
         
-        length = min(len(spec), len(vad), len(turn), len(target), len(text))
+        length = min(len(feat), len(spec), len(vad), len(turn), len(target), len(text))
         batch['text'] = text[:length]
         batch['idx'] = idx[:length]
         batch['vad'] = vad[:length]
@@ -393,6 +433,7 @@ class ATRDataset(Dataset):
         batch['target'] = target[:length]
         batch['target2'] = target2[:length]
         batch['spec'] = spec[:length]
+        batch['feat'] = feat[:length]
         batch['indices'] = index
         
         wav_len = int(length * self.sample_rate * self.frame_length / 1000)
@@ -407,12 +448,13 @@ class ATRDataset(Dataset):
     
 
 def collate_fn(batch):
-    chs, offsets, is_barge_in, texts, kanas, idxs, spec_paths, wav_paths, vad, turn, last_ipu, targets, targets2, specs, indices = zip(*batch)
+    chs, offsets, is_barge_in, texts, kanas, idxs, spec_paths, feat_paths, wav_paths, vad, turn, last_ipu, targets, targets2, specs, feats, indices = zip(*batch)
     
     batch_size = len(chs)
     
     max_len = max([len(f) for f in specs])
     _, h, w = specs[0].shape
+    _, cnnae_dim = feats[0].shape
     
     text_ = []
     # kana_ = []
@@ -421,6 +463,7 @@ def collate_fn(batch):
     last_ipu_ = torch.zeros(batch_size, max_len).long()
     target_ = torch.ones(batch_size, max_len).long()*(-100)
     spec_ = torch.zeros(batch_size, max_len, h, w)
+    feat_ = torch.zeros(batch_size, max_len, cnnae_dim)
     target2_ = torch.ones(batch_size, max_len)*(-100)
     
     
@@ -434,13 +477,14 @@ def collate_fn(batch):
         vad_[i, :l1] = torch.tensor(vad[i]).long()       
         turn_[i, :l1] = torch.tensor(turn[i]).long()       
         last_ipu_[i, :l1] = torch.tensor(last_ipu[i]).long()
-        target_[i, :l1] = torch.tensor(targets[i]).long()     
+        target_[i, :l1] = torch.tensor(targets[i]).long() 
+        feat_[i, :l1] = torch.tensor(feats[i])    
         spec_[i, :l1] = torch.tensor(specs[i])
         target2_[i, :l1] = torch.tensor(targets2[i])
        
     input_lengths = torch.tensor(input_lengths).long()
         
-    return chs, text_, kanas, idxs, vad_, turn_, last_ipu_, target_, spec_, input_lengths, offsets, indices, is_barge_in, wav_paths, wav_paths, target2_
+    return chs, text_, kanas, idxs, vad_, turn_, last_ipu_, target_, spec_, input_lengths, offsets, indices, is_barge_in, wav_paths, wav_paths, target2_, feat_
     
 
 # torch.utils.data.DataLoader によってデータローダの作成

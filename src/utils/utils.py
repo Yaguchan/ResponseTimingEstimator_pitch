@@ -4,6 +4,7 @@ import torch
 import shutil
 import functools
 import numpy as np
+import torch.nn as nn
 from dotmap import DotMap
 from collections import Counter, OrderedDict
 
@@ -135,6 +136,31 @@ def get_cer(hypotheses, hypothesis_lengths, references, reference_lengths):
 
 def l2_normalize(x, dim=1):
     return x / torch.sqrt(torch.sum(x**2, dim=dim).unsqueeze(dim))
+
+
+class L2Norm(nn.Module):
+    def __init__(self):
+        super(L2Norm, self).__init__()
+    def forward(self, x):
+        y = x.reshape(x.shape[0], -1)
+        y = torch.pow(y, 2.0)
+        y = torch.sum(y, (1, ), keepdim=True)
+        y = torch.sqrt(y)
+        y = y / np.prod(x.shape[1:])
+        y = y + 1e-5
+        return y
+
+
+class Normalize(nn.Module):
+    """
+    与えられた係数で正規化する
+    """
+    def __init__(self):
+        super(Normalize, self).__init__()
+
+    def forward(self, x, coef):
+        coef = coef.reshape(-1, 1, 1, 1)
+        return x / coef
 
 
 def frozen_params(module):

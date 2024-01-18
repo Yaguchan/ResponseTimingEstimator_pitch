@@ -67,11 +67,11 @@ def trainer(num_epochs, model, loader_dict, optimizer, device, outdir):
         print('------------------------------------')
         print("Train VAD loss : {}".format(train_vad_loss))
         print("Train F0 loss  : {}".format(train_f0_loss))
-        print("Train VAD      : {}".format(train_vad_acc))
+        print("Train VAD Acc  : {}".format(train_vad_acc))
         print('------------------------------------')
         print("Val VAD loss : {}".format(val_vad_loss))
         print("Val F0 loss  : {}".format(val_f0_loss))
-        print("Val VAD      : {}".format(val_vad_acc))
+        print("Val VAD Acc  : {}".format(val_vad_acc))
         print('------------------------------------')
         if best_val_vad_loss > val_vad_loss:
             best_val_vad_loss = val_vad_loss
@@ -83,5 +83,5 @@ def tester(model, loader_dict, device):
     print('------------------------------------')
     print("Test VAD loss: {}".format(test_vad_loss))
     print("Test F0 loss : {}".format(test_f0_loss))
-    print("Test VAD     : {}".format(test_vad_acc))
+    print("Test VAD Acc : {}".format(test_vad_acc))
     print('------------------------------------')

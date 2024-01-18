@@ -11,7 +11,8 @@ from queue import PriorityQueue
 import operator
 
 from src.utils.utils import load_config
-from src.models.vad.vad import VAD
+from src.models.vad.vad import VADSpec
+from src.models.vad.vad2 import VADCNNAE
 from src.models.lm.model import LSTMLM
 
 torch.autograd.set_detect_anomaly(True)
@@ -40,9 +41,16 @@ class TimingEncoder(nn.Module):
         self.max_n_word = config.model_params.max_n_word
         
         if is_use_silence:
-            vad = VAD(
+            """
+            vad = VADSpec(
                 self.device,
-                self.config.model_params.input_dim,
+                self.config.model_params.vad_input_dim,
+                self.config.model_params.vad_hidden_dim,
+            )
+            """
+            vad = VADCNNAE(
+                self.device,
+                self.config.model_params.vad_input_dim,
                 self.config.model_params.vad_hidden_dim,
             )
             self.vad = vad
@@ -94,7 +102,6 @@ class TimingEncoder(nn.Module):
         Returns:
             outputs: silence count (N, 1)
         """
-        
         if (indice not in self.silence_dict[split]) or streaming_inference:
             uttr_pred = torch.sigmoid(uttr_pred)
             uttr_pred = uttr_pred.detach().cpu()
@@ -143,7 +150,7 @@ class TimingEncoder(nn.Module):
         Returns:
             outputs: silence count (N, 1)
         """
-        
+        # print(self.silence_dict[split])
         if (indice not in self.silence_dict[split]) or streaming_inference:
             uttr_pred = torch.sigmoid(uttr_pred)
             uttr_pred = uttr_pred.detach().cpu()
@@ -175,9 +182,18 @@ class TimingEncoder(nn.Module):
             self.silence_dict[split][indice] = (silence, utter_length)
             
         else:
-            silence, utter_length = self.silence_dict[split][indice]   
-            
-        dialog_length = torch.tensor([self.total])
+            silence, utter_length = self.silence_dict[split][indice]
+        
+        dialog_length = []
+        for i in range(len(silence)):
+            dialog_length.append(self.total-len(silence)+i+1)
+        dialog_length = torch.tensor(dialog_length)
+        
+        # print(silence)
+        # print(utter_length)
+        # print(dialog_length)
+        # print()
+                
         return silence.unsqueeze(1).to(self.device), utter_length.unsqueeze(1).to(self.device), dialog_length.unsqueeze(1).to(self.device)    
     
     
@@ -434,7 +450,8 @@ class TimingEncoder(nn.Module):
         Returns:
             outputs: timing representation (N, encoding_dim)
         """
-        b, n, h, w = feats.shape
+        # b, n, h, w = feats.shape
+        b, n, _ = feats.shape
         silences = None
         n_words = None               
         
@@ -479,11 +496,11 @@ class TimingEncoder(nn.Module):
         r_t = self.linear(x_t) 
         
         if debug:
-            return r_t, silences#torch.sigmoid(vad_preds)
+            return r_t, silences, torch.sigmoid(vad_preds)
         
         return r_t
     
-    
+    # demoで使用
     def streaming_inference(self, feats, idxs, input_lengths, indices, split, debug=False):
         """ Fusion multi-modal inputs
         Args:
@@ -494,7 +511,8 @@ class TimingEncoder(nn.Module):
         Returns:
             outputs: timing representation (N, encoding_dim)
         """
-        b, n, h = feats.shape
+        # b, n, w, h = feats.shape
+        b, n, _ = feats.shape
         silences = None
         n_words = None       
         
@@ -508,7 +526,7 @@ class TimingEncoder(nn.Module):
             utter_lengths = torch.zeros([b, max_len, 1]).to(self.device)
             dialog_lengths = torch.zeros([b, max_len, 1]).to(self.device)
             for i in range(b):                
-                silence, utter_length, dialog_length = self.get_silence_streaming(vad_preds[i][:input_lengths[i]], indices[i], split, streaming_inference=True)
+                silence, utter_length, dialog_length = self.get_silence_streaming(vad_preds[i][:input_lengths[i]], indices[i], split, streaming_inference=True) 
                 #print('vad_preds:', vad_preds)
                 #print('silence:', silence)
                 #print('utter_length:', utter_length)
@@ -519,7 +537,7 @@ class TimingEncoder(nn.Module):
                 
             silences = torch.cat([silences, utter_lengths, dialog_lengths], dim=-1)                
                 
-            self.vad.reset_state()
+            # self.vad.reset_state()
         
         # Estimate Characters to the EoU        
         if self.is_use_n_word:

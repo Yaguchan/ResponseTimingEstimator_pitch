@@ -72,10 +72,13 @@ class CNNAutoEncoder:
         self.generator.reset()
     
         
-    def __call__(self, x, streaming=False):
+    def __call__(self, x, streaming=False, single=False):
         
         if streaming:
-            return self.extract_streaming(x)
+            if single:
+                return self.extract_streaming(x)
+            else:
+                return self.extract_streaming2(x)
         else:
             return self.extract(x)        
 
@@ -123,7 +126,8 @@ class CNNAutoEncoder:
     
     def extract_streaming(self, x):
         """
-        CNN-AEのボトルネック特徴量を計算する．
+        CNN-AEのボトルネック特徴量を計算する. 
+        生成された複数のスペクトログラムの内、【先頭のスペクトログラムに】適用.
 
         Parameters
         ----------
@@ -139,8 +143,8 @@ class CNNAutoEncoder:
         feature = []
         with torch.no_grad():    
             #spectrogramの作成
-            result = self.generator.input_wave(x)                
-
+            result = self.generator.input_wave(x)
+            
             image_in = result[0].reshape(1, self._image_height, self._image_width)
             image_in = torch.tensor(image_in).float().to(self.device)
             # 中間層出力
@@ -149,7 +153,27 @@ class CNNAutoEncoder:
             feature.append(x[0].detach().cpu().data.numpy())
 
         power = np.vstack(power)
-        feature = np.vstack(feature)    
+        feature = np.vstack(feature)
+        return feature, power
+    
+    
+    def extract_streaming2(self, x):
+        """
+        CNN-AEのボトルネック特徴量を計算する. 
+        生成された複数のスペクトログラムの内、【全てのスペクトログラムに】適用.
+        """
+        power = []
+        feature = []
+        with torch.no_grad():    
+            result = self.generator.input_wave(x)
+            for j in range(len(result)):
+                image_in = result[j].reshape(1, 512, 10)
+                image_in = torch.tensor(image_in).float().to(self.device)
+                x, l2 = self.ae2.encode(image_in)
+                power.append(l2[0].detach().cpu().data.numpy())
+                feature.append(x[0].detach().cpu().data.numpy())
+        power = np.vstack(power)
+        feature = np.vstack(feature)
         return feature, power
 
 

@@ -3,12 +3,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.nn.utils.rnn as rnn_utils
 from itertools import chain
-from src.models.vad.vad import VADSpec
+
+from src.models.vad.vad2 import VADCNNAE
 
 torch.autograd.set_detect_anomaly(True)
 
 
-class VoiceActivityDetactorSpec(nn.Module):
+class VoiceActivityDetactorCNNAE(nn.Module):
 
     def __init__(self, config, device):
         super().__init__()
@@ -16,16 +17,14 @@ class VoiceActivityDetactorSpec(nn.Module):
         self.device = device
         self.create_models()
 
-    
     def create_models(self):
-        vad = VADSpec(
+        vad = VADCNNAE(
             self.device,
             self.config.model_params.input_dim,
             self.config.model_params.hidden_dim,
         )
         self.vad = vad
 
-    
     def configure_optimizer_parameters(self):
 
         parameters = chain(
@@ -33,22 +32,20 @@ class VoiceActivityDetactorSpec(nn.Module):
         )
         return parameters
 
-    
-    def forward(self, batch, split='train'):  
+    def forward(self, batch, split='train'):
         """     
         vad_labels = batch[1].to(self.device)
         specs = batch[5].to(self.device)
         input_lengths = batch[6]
         """
-        specs = batch[0].to(self.device)
+        feats = batch[1].to(self.device)
         vad_labels = batch[2].to(self.device)
         input_lengths = batch[3]
-        
         batch_size = int(len(vad_labels))
         self.vad.reset_state()
         
         vad_loss, vad_acc, vad_precision, vad_recall, vad_f1 = 0, 0, 0, 0, 0
-        outputs_vad = self.vad(specs, input_lengths)
+        outputs_vad = self.vad(feats, input_lengths)
         for i in range(batch_size):
             output_vad = outputs_vad[i]
             vad_loss = vad_loss + self.vad.get_loss(output_vad[:input_lengths[i]], vad_labels[i][:input_lengths[i]])
@@ -73,18 +70,13 @@ class VoiceActivityDetactorSpec(nn.Module):
 
         return outputs
     
-    
-    def inference(self, batch, split='train'):  
-        """
-        specs = batch[5].to(self.device)
-        input_lengths = batch[6]
-        """
-        specs = batch[0].to(self.device)
+    def inference(self, batch, split='train'):
+        feats = batch[0].to(self.device)
         input_lengths = batch[1]
         
-        batch_size = int(len(specs))
+        batch_size = int(len(feats))
         self.vad.reset_state()
         
-        outputs = torch.sigmoid(self.vad(specs, input_lengths))
+        outputs = torch.sigmoid(self.vad(feats, input_lengths))
 
         return outputs

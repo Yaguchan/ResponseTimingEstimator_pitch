@@ -2,13 +2,13 @@ import os
 import glob
 import json
 import wave
-import struct
 import torch
+import random
+import struct
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
 import numpy as np
 import pandas as pd
-import random
 
 from tqdm import tqdm
 
@@ -75,47 +75,76 @@ class ATRDataset(Dataset):
         self.is_use_eou = is_use_eou    
         self.eou_id = len(self.tokens)-1
         
-        data = self.get_data() 
+        name, data = self.get_data() 
         
         # alldata or cross validation
         if cv_id == -1:
             self.data = data
         else:
-            random.seed(0)
-            random.shuffle(data)
+            list_data = list(zip(name, data))
+            random.shuffle(list_data)
+            name, data = zip(*list_data)
             
-            NUM = len(data)//5
-            sub1 = data[NUM*0:NUM*1]
-            sub2 = data[NUM*1:NUM*2]
-            sub3 = data[NUM*2:NUM*3]
-            sub4 = data[NUM*3:NUM*4]
-            sub5 = data[NUM*4:]
+            NUM = len(data)//6
+            sub1 = [item for lists in data[:NUM*1] for item in lists]
+            sub2 = [item for lists in data[NUM*1:NUM*2] for item in lists]
+            sub3 = [item for lists in data[NUM*2:NUM*3] for item in lists]
+            sub4 = [item for lists in data[NUM*3:NUM*4] for item in lists]
+            sub5 = [item for lists in data[NUM*4:NUM*5] for item in lists]
+            sub6 = [item for lists in data[NUM*5:] for item in lists]
+            sub1name = name[:NUM*1]
+            sub2name = name[NUM*1:NUM*2]
+            sub3name = name[NUM*2:NUM*3]
+            sub4name = name[NUM*3:NUM*4]
+            sub5name = name[NUM*4:NUM*5]
+            sub6name = name[NUM*5:]
             
             if cv_id == 1:
+                valset = sub1
+                valname = sub1name
                 trainset = sub2+sub3+sub4+sub5
-                testset = sub1
+                trainname = sub2name+sub3name+sub4name+sub5name
             elif cv_id == 2:
-                trainset = sub3+sub4+sub5+sub1
-                testset = sub2
+                valset = sub2
+                valname = sub2name
+                trainset = sub1+sub3+sub4+sub5
+                trainname = sub1name+sub3name+sub4name+sub5name
             elif cv_id == 3:
-                trainset = sub4+sub5+sub1+sub2
-                testset = sub3
+                valset = sub3
+                valname = sub3name
+                trainset = sub1+sub2+sub4+sub5
+                trainname = sub1name+sub2name+sub4name+sub5name
             elif cv_id == 4:
-                trainset = sub5+sub1+sub2+sub3
-                testset = sub4
+                valset = sub4
+                valname = sub4name
+                trainset = sub1+sub2+sub3+sub5
+                trainname = sub1name+sub2name+sub3name+sub5name
             elif cv_id == 5:
+                valset = sub5
+                valname = sub5name
                 trainset = sub1+sub2+sub3+sub4
-                testset = sub5
-            elif cv_id == 0:
-                trainset = sub1+sub2+sub3+sub4+sub5
-                testset = sub1+sub2+sub3+sub4+sub5
+                trainname = sub1name+sub2name+sub3name+sub4name
             else:
                 NotImplemented
+            
+            testset = sub6
+            testname = sub6name
                 
             if split == 'train':
                 self.data = trainset
+            elif split == 'val':
+                self.data = valset
             else:
                 self.data = testset
+                with open(os.path.join(config.exp_dir, f'cv{cv_id}', 'name.txt'), 'w') as f:
+                    f.write('------------------------------------\n')
+                    for category, category_names in zip(['train', 'val', 'test'], [trainname, valname, testname]):
+                        f.write(f'{category}\n')
+                        category_names = sorted(list(category_names))
+                        for category_name in category_names:
+                            f.write(f'{category_name}\n')
+                        f.write('------------------------------------\n')
+    
         
     def read_wav(self, wavpath):
         wf = wave.open(wavpath, 'r')
@@ -233,10 +262,11 @@ class ATRDataset(Dataset):
     
     def get_data(self):
         data = []
+        name = []
         for file_name in tqdm(self.file_names):
-            data += self.get_turn_info(file_name)
-
-        return data
+            name.append(file_name)
+            data.append(self.get_turn_info(file_name))
+        return name, data
     
         
     def __getitem__(self, index):

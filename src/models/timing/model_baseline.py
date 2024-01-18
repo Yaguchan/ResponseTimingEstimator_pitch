@@ -53,14 +53,15 @@ class BaselineSystem(nn.Module):
         #turn = batch[5].to(self.device)
         #last_ipu = batch[6].to(self.device)
         targets = batch[7].to(self.device)
-        feats = batch[8].to(self.device)
+        specs = batch[8].to(self.device)
         input_lengths = batch[9] #.to(self.device)
         offsets = batch[10] #.to(self.device)
         indices = batch[11] #.to(self.device)
         targets2 = batch[15].to(self.device)
+        feats = batch[16].to(self.device)
         batch_size = int(len(chs))
                 
-        embs = self.feature_extractor(feats, idxs, input_lengths, texts, indices, split)
+        embs = self.feature_extractor(specs, feats, idxs, input_lengths, texts, indices, split)
         # embs = torch.cat([embs, nxt_da], dim=-1)
         # embs = torch.cat([embs, self.fc(nxt_das)], dim=-1)
         outputs = self.timing_model(embs, input_lengths)
@@ -89,18 +90,28 @@ class BaselineSystem(nn.Module):
     
     
     def streaming_inference(self, batch, split='val', debug=False):        
-        feats = batch[0].to(self.device)
-        input_lengths = batch[1]
-        texts = batch[2]
-        idxs = batch[3]
-        indices = batch[4]
-        
-        embs, silence, vad_preds = self.feature_extractor.streaming_inference(feats, idxs, input_lengths, texts, indices, split, debug)
-                    
+        specs = batch[0].to(self.device)
+        feats = batch[1].to(self.device)
+        input_lengths = batch[2]
+        texts = batch[3]
+        idxs = batch[4]
+        indices = batch[5]
+        embs, silence, vad_preds = self.feature_extractor.streaming_inference(specs, feats, idxs, input_lengths, texts, indices, split, debug) 
         outputs = self.timing_model(embs, input_lengths)
-        if debug:
-            return outputs, silence, vad_preds
-        
+        if debug: return outputs, silence, vad_preds
+        return outputs
+    
+    
+    def nonstreaming_inference(self, batch, split='val', debug=False):        
+        specs = batch[0].to(self.device)
+        feats = batch[1].to(self.device)
+        input_lengths = batch[2]
+        texts = batch[3]
+        idxs = batch[4]
+        indices = batch[5]      
+        embs, silence, vad_preds = self.feature_extractor.nonstreaming_inference(specs, feats, idxs, input_lengths, texts, indices, split, debug)        
+        outputs = self.timing_model(embs, input_lengths)
+        if debug: return outputs, silence, vad_preds
         return outputs
     
     
