@@ -1,6 +1,6 @@
 {
     "exp_base": "exp",
-    "exp_name": "annotated/data_-500_2000/lm/sakuma",
+    "exp_name": "annotated/data_-500_2000/acoustic_feature",
     "cuda": true,
     "seed": 1234,
     "data_loader_workers": 1,
@@ -17,20 +17,13 @@
         "n_context": 0
     },
     "model_params": {
-        "input_dim": 300,
-        "output_dim": 2307,
-        "hidden_dim": 512,
-        "nlayers": 1,
-        "semantic_encoding_dim": 128,
-        "bidirectional": false
+        "acoustic_input_dim": 128,
+        "acoustic_hidden_dim": 512,
+        "acoustic_encoding_dim": 128
     },
     "optim_params": {
-        "batch_size": 16,
-        "learning_rate": 1e-4,
-        "weight_decay": 0,
-        "loss_weight": 3.0,
-        "grad_clip": 1,
-        "validate_freq": 5
+        "batch_size": 4,
+        "learning_rate": 1e-3
     },
-    "num_epochs": 50
+    "num_epochs": 10
 }

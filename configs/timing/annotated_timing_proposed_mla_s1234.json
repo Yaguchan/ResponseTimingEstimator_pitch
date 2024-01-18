@@ -1,6 +1,6 @@
 {
     "exp_base": "exp",
-    "exp_name": "annotated/data_-500_2000/timing/asj2023/model_proposed_mla_s1234",
+    "exp_name": "annotated/data_-500_2000/timing/proposed/",
     "cuda": true,
     "seed": 1234,
     "data_loader_workers": 1,
@@ -29,12 +29,15 @@
         "n_best": 3,
         "max_n_word": 5,
         "timing_encoding_dim": 128,
+        "f0_input_dim": 128,
+        "f0_hidden_dim": 512,
         "f0_encoding_dim": 128,
         "vad_hidden_dim": 512,
         "vad_model_path": "/mnt/aoni04/yaguchi/code/ResponseTimingEstimator_pitch/exp/annotated/data_-500_2000/vad/best_val_loss_model.pth",
         "f0_model_path": "/mnt/aoni04/yaguchi/code/ResponseTimingEstimator_pitch/exp/annotated/data_-500_2000/f0/best_val_loss_model.pth",
-        "lm_config_path": "/mnt/aoni04/yaguchi/code/ResponseTimingEstimator_DA/configs/lm/annotated_char_lstm_l1.json",
-        "lm_model_path": "/mnt/aoni04/yaguchi/code/ResponseTimingEstimator_DA/exp/annotated/data_-500_2000/lm/test",
+        "lm_config_path": "/mnt/aoni04/yaguchi/code/ResponseTimingEstimator_pitch/configs/lm/annotated_char_lstm_l1.json",
+        "lm_model_path": "/mnt/aoni04/yaguchi/code/ResponseTimingEstimator_pitch/exp/annotated/data_-500_2000/lm/sakuma",
+        "af_model_path": "/mnt/aoni04/yaguchi/code/ResponseTimingEstimator_pitch/exp/annotated/data_-500_2000/acoustic_feature",
         "bidirectional": false
     },
     "optim_params": {

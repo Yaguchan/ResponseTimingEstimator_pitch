@@ -1,6 +1,6 @@
 {
     "exp_base": "exp",
-    "exp_name": "annotated/data_-500_2000/timing/same",
+    "exp_name": "annotated/data_-500_2000/timing/spec_cnnae/notrain_af",
     "cuda": true,
     "seed": 1234,
     "data_loader_workers": 1,
@@ -18,7 +18,8 @@
     },
     "model_params": {
         "num_layers": 2,
-        "input_dim": 320,
+        "acoustic_input_dim": 128,
+        "vad_input_dim": 128,
         "output_dim": 10,
         "hidden_dim": 512,
         "eou_id": 2306,
@@ -27,18 +28,21 @@
         "acoustic_encoding_dim": 128,
         "timing_input_dim": 3,
         "timing_encoding_dim": 128,
+        "f0_input_dim": 128,
+        "f0_hidden_dim": 512,
         "f0_encoding_dim": 128,
         "vad_hidden_dim": 512,
-        "vad_model_path": "/mnt/aoni04/yaguchi/code/ResponseTimingEstimator_pitch/exp/annotated/data_-500_2000/vad/best_val_loss_model.pth",
-        "f0_model_path": "/mnt/aoni04/yaguchi/code/ResponseTimingEstimator_pitch/exp/annotated/data_-500_2000/f0/best_val_loss_model.pth",
+        "vad_model_path": "/mnt/aoni04/yaguchi/code/ResponseTimingEstimator_pitch/exp/annotated/data_-500_2000/vad/cnnae/best_val_loss_model.pth",
+        "f0_model_path": "/mnt/aoni04/yaguchi/code/ResponseTimingEstimator_pitch/exp/annotated/data_-500_2000/f0/cnnae2_atr/best_val_loss_model.pth",
         "vad_and_f0_model_path": "/mnt/aoni04/yaguchi/code/ResponseTimingEstimator_pitch/exp/annotated/data_-500_2000/vad_and_f0/best_val_loss_model.pth",
         "lm_config_path": "/mnt/aoni04/yaguchi/code/ResponseTimingEstimator_DA/configs/lm/annotated_char_lstm_l1.json",
         "lm_model_path": "/mnt/aoni04/yaguchi/code/ResponseTimingEstimator_DA/exp/annotated/data_-500_2000/lm/test",
+        "af_model_path": "/mnt/aoni04/yaguchi/code/ResponseTimingEstimator_pitch/exp/annotated/data_-500_2000/acoustic_feature",
         "bidirectional": false
     },
     "optim_params": {
         "batch_size": 4,
-        "learning_rate": 1e-5
+        "learning_rate": 1e-4
     },
     "num_epochs": 10
 }
