@@ -32,13 +32,10 @@ MLA=True
 # user : parallel
 # python preprocess/make_annotated_wav2text.py configs/preprocess.json --gpuid 0
 # espnet2/asr_transducer/joint_network.py 変更
-# OUTDIR = '/mnt/aoni04/yaguchi/code/ResponseTimingEstimator_DA/data/ATR_Annotated/data_-500_2000/texts/cbs-t_mla_848'
-OUTDIR = '/mnt/aoni04/yaguchi/code/ResponseTimingEstimator_DA/data/ATR_Annotated/data_-500_1000/texts/cbs-t_mla_848'
 asr_base_path = "/mnt/aoni04/yaguchi/code/espnet/egs2/atr/asr1"
 asr_train_config = "exp/asr_train_asr_cbs_transducer_848_finetune_raw_jp_char_sp/config.yaml"
 asr_model_file = "exp/asr_train_asr_cbs_transducer_848_finetune_raw_jp_char_sp/valid.loss_transducer.ave_10best.pth"
 """
-OUTDIR = '/mnt/aoni04/yaguchi/code/ResponseTimingEstimator_DA/data/ATR_Annotated/data_-500_1000/texts'
 asr_base_path = "/mnt/aoni04/yaguchi/code/test/espnet/egs2/atr/asr1"
 asr_train_config = "exp/asr_train_asr_parallel_cbs_transducer_raw_jp_char_sp/config.yaml"
 asr_model_file = "exp/asr_train_asr_parallel_cbs_transducer_raw_jp_char_sp/valid.loss_transducer.ave_1best.pth"
@@ -47,7 +44,6 @@ asr_model_file = "exp/asr_train_asr_parallel_cbs_transducer_raw_jp_char_sp/valid
 
 # user : bifurcation
 """
-OUTDIR='/mnt/aoni04/yaguchi/code/ResponseTimingEstimator/data/texts/cbs-t_mla_bifurcation'
 asr_base_path="/mnt/aoni04/yaguchi/code/espnet/egs2/atr/asr1"
 asr_train_config = "exp/asr_train_asr_bifurcation_cbs_transducer_848_raw_jp_char_sp/config.yaml"
 asr_model_file = "exp/asr_train_asr_bifurcation_cbs_transducer_848_raw_jp_char_sp/valid.loss_transducer.ave_10best.pth"
@@ -112,11 +108,9 @@ def get_recognize_frame(data):
 def run(args):
     config = load_config(args.config)
     seed_everything(config.seed)
-    #if args.gpuid >= 0:
-    config.gpu_device = args.gpuid
         
-    if config.gpu_device>=0:
-        device = torch.device('cuda:{}'.format(config.gpu_device))
+    if config.cuda:
+        device = torch.device('cuda:{}'.format(args.gpuid))
     else:
         device = torch.device('cpu')
     
@@ -136,8 +130,8 @@ def run(args):
             dir_name = '_'.join(name_part[:-1])
             file_name = '_'.join(name_part).replace('.wav', '')
 
-            os.makedirs(os.path.join(OUTDIR, '{}'.format(dir_name)), exist_ok=True)
-            df_path = os.path.join(OUTDIR, '{}/{}.csv'.format(dir_name, file_name))
+            os.makedirs(os.path.join(config.output_dir, '{}'.format(dir_name)), exist_ok=True)
+            df_path = os.path.join(config.output_dir, '{}/{}.csv'.format(dir_name, file_name))
 
             if os.path.isfile(df_path):
                 continue 

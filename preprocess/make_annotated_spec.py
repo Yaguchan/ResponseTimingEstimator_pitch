@@ -9,7 +9,8 @@ import sflib.sound.sigproc.spec_image as spec_image
 generator = spec_image.SpectrogramImageGenerator()
 
 
-DATAROOT = '/mnt/aoni04/yaguchi/code/ResponseTimingEstimator_DA/data/ATR_Annotated/data_-500_2000'
+# python preprocess/make_annotated_spec.py
+DATAROOT = '/mnt/aoni04/yaguchi/code/ResponseTimingEstimator_DA/data/ATR_Annotated/data_noise_-500_2000/SNR5'
 
 
 def main():
@@ -32,8 +33,7 @@ def main():
             pad = np.zeros(int(16000*0.05), np.int16)
             x = np.concatenate([pad, x, pad])
             generator = spec_image.SpectrogramImageGenerator()
-            spec = generator.input_wave(x)
-            spec = np.vstack(spec)
+            spec = np.array(generator.input_wave(x))
             np.save(spec_path, spec)
 
 

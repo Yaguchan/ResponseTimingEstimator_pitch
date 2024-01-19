@@ -21,20 +21,15 @@ OFFSET = 300
 
 
 def save_turn_wav(wavepath, outpath, start, end, rate=16000, bits_per_sample=16):
-    
     wf = wave.open(wavepath, 'r')
-
     # waveファイルが持つ性質を取得
     ch = wf.getnchannels()
     width = wf.getsampwidth()
     fr = wf.getframerate()
     fn = wf.getnframes()
-    
     x = wf.readframes(wf.getnframes()) #frameの読み込み
     x = np.frombuffer(x, dtype= "int16") #numpy.arrayに変換
-    
     turn = x[start*(rate//1000):end*(rate//1000)]
-
     wf.close()    
     
     waveFile = wave.open(outpath, 'wb')
@@ -43,6 +38,7 @@ def save_turn_wav(wavepath, outpath, start, end, rate=16000, bits_per_sample=16)
     waveFile.setframerate(rate)
     waveFile.writeframes(b''.join(turn))
     waveFile.close()
+
 
 if __name__ == '__main__':
     file_paths = sorted(glob.glob(os.path.join(CSVDIR, '*.csv')))
