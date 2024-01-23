@@ -29,7 +29,7 @@ CONFIG_PATH = 'configs/timing/annotated_timing_baseline_mla_s1234.json'
 
 ## MODEL
 # MODEL_PATH = 'exp/annotated/data_-500_2000/timing/spec_cnnae/aef0cnnaeatr128_vadcnnae/cv1/best_val_loss_model.pth'
-MODEL_PATH = 'exp/annotated/data_-500_2000/timing/spec_cnnae/notrain_af/cv1/best_val_loss_model.pth'
+MODEL_PATH = 'exp/annotated/data_-500_2000/timing/baseline_cnnae/esc-50/cleansnr5snr10snr20/cv1/best_val_loss_model.pth'
 # MODEL_PATH = 'exp/annotated/data_-500_2000/timing/yaguchinoise1e-4/cv1/best_val_loss_model.pth'
 
 ## OUTDIR
@@ -41,8 +41,8 @@ OUTDIR = 'demo/streaming/video'
 # WAV_PATH = '/mnt/aoni04/yaguchi/code/ResponseTimingEstimator_DA/wav/20131101-1_01/20131101-1_01_001_ch0/yaguchi_mac.wav'
 # WAV_PATH = '/mnt/aoni04/yaguchi/code/ResponseTimingEstimator_DA/wav/20131101-1_01/20131101-1_01_001_ch0/original_mac.wav'
 # WAV_PATH = '/mnt/aoni04/yaguchi/code/ResponseTimingEstimator_DA/wav/20131101-1_01/20131101-1_01_001_ch0/yaguchinoise.wav'
-WAV_PATH = '/mnt/aoni04/yaguchi/code/ResponseTimingEstimator_DA/data/ATR_Annotated/data_-500_2000/wav/20131125-6_01/20131125-6_01_005.wav'
-# WAV_PATH = '/mnt/aoni04/yaguchi/code/ResponseTimingEstimator_DA/wav/yaguchi_iphone/yaguchi_iphone4.wav'
+# WAV_PATH = '/mnt/aoni04/yaguchi/code/ResponseTimingEstimator_DA/data/ATR_Annotated/data_-500_2000/wav/20131125-6_01/20131125-6_01_005.wav'
+WAV_PATH = '/mnt/aoni04/yaguchi/code/ResponseTimingEstimator_DA/wav/yaguchi_iphone/yaguchi_iphone4.wav'
 
 
 def seed_everything(seed):
@@ -60,7 +60,14 @@ def main():
     
     # setting
     ## spectrogram
-    generator = spec_image.SpectrogramImageGenerator(framesize=800, frameshift=160, fftsize=1024, image_width=10, image_height=None, image_shift=5)
+    generator = spec_image.SpectrogramImageGenerator(
+        framesize=800, 
+        frameshift=160, 
+        fftsize=1024, 
+        image_width=10, 
+        image_height=None, 
+        image_shift=5
+    )
     ## asr
     speech2text = Speech2Text(
         asr_base_path="/mnt/aoni04/yaguchi/code/espnet/egs2/atr/asr1",
@@ -94,6 +101,7 @@ def main():
         return text, token_int
     # cnnae
     cnnae = CNNAutoEncoder(device='cpu')
+    
     
     # model
     config = load_config(CONFIG_PATH)
